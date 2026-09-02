@@ -1,0 +1,6 @@
+/data/*.sqlite
+/data/*.sqlite-journal
+/config/local.php
+.idea/
+.vscode/
+*.log
