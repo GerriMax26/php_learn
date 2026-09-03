@@ -166,3 +166,386 @@
 
     updateHints();
 })();
+// ============================================
+// РАБОТА С КОМПАНИЯМИ
+// ============================================
+
+(function() {
+    const page = document.querySelector('[data-page="companies"]');
+    if (!page) {
+        return;
+    }
+
+    const csrf = page.dataset.csrf;
+    const flash = document.getElementById('flash');
+    const syncBtn = document.getElementById('sync-companies-btn');
+    const migrateBtn = document.getElementById('migrate-btn');
+
+    function showFlash(text, isError = false) {
+        if (!flash) return;
+        flash.hidden = false;
+        flash.textContent = text;
+        flash.classList.toggle('error', isError);
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-Token': csrf,
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Ошибка запроса');
+        }
+        return data;
+    }
+
+    // Синхронизация компаний
+    syncBtn?.addEventListener('click', async () => {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Загрузка...';
+        try {
+            const data = await postJson('/sync-companies', {});
+            showFlash(
+                `✅ Загружено компаний: облако ${data.counts.cloud}, коробка ${data.counts.box}. Страница будет обновлена.`
+            );
+            setTimeout(() => window.location.reload(), 800);
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            syncBtn.disabled = false;
+            syncBtn.textContent = 'Загрузить компании';
+        }
+    });
+
+    // Перенос компаний
+    migrateBtn?.addEventListener('click', async () => {
+        // Проверяем, есть ли компании для переноса
+        const rows = document.querySelectorAll('#company-table tbody tr');
+        let hasUnmigrated = false;
+        rows.forEach(row => {
+            const status = row.querySelector('td:last-child .badge');
+            if (status && status.textContent.trim() === 'Ожидает') {
+                hasUnmigrated = true;
+            }
+        });
+
+        if (!hasUnmigrated) {
+            showFlash('ℹ️ Нет компаний для переноса (все уже перенесены).', false);
+            return;
+        }
+
+        if (!confirm('Перенести все компании из облака в коробку? Ответственные будут назначены автоматически.')) {
+            return;
+        }
+
+        migrateBtn.disabled = true;
+        migrateBtn.textContent = 'Перенос...';
+        try {
+            const data = await postJson('/migrate-companies', {});
+            const result = data.result;
+            
+            let msg = `✅ Перенесено: ${result.created}`;
+            if (result.skipped > 0) msg += `, пропущено (уже есть): ${result.skipped}`;
+            if (result.errors > 0) msg += `, ❌ ошибок: ${result.errors}`;
+            
+            showFlash(msg, result.errors > 0);
+            
+            if (result.errors > 0) {
+                console.error('Детали ошибок:');
+                result.details?.filter(d => d.includes('Ошибка')).forEach(d => console.error(d));
+            }
+            
+            if (result.created > 0 || result.errors === 0) {
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                migrateBtn.disabled = false;
+                migrateBtn.textContent = 'Перенести компании';
+            }
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            migrateBtn.disabled = false;
+            migrateBtn.textContent = 'Перенести компании';
+        }
+    });
+
+    // Если есть flash-сообщение при загрузке страницы, показываем его
+    const flashMessage = page.dataset.flash;
+    if (flashMessage) {
+        showFlash(flashMessage);
+    }
+})();
+
+// ============================================
+// РАБОТА С КОНТАКТАМИ
+// ============================================
+
+(function() {
+    const page = document.querySelector('[data-page="contacts"]');
+    if (!page) {
+        return;
+    }
+
+    const csrf = page.dataset.csrf;
+    const flash = document.getElementById('flash');
+    const syncBtn = document.getElementById('sync-contacts-btn');
+    const migrateBtn = document.getElementById('migrate-btn');
+
+    function showFlash(text, isError = false) {
+        if (!flash) return;
+        flash.hidden = false;
+        flash.textContent = text;
+        flash.classList.toggle('error', isError);
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-Token': csrf,
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Ошибка запроса');
+        }
+        return data;
+    }
+
+    syncBtn?.addEventListener('click', async () => {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Загрузка...';
+        try {
+            const data = await postJson('/sync-contacts', {});
+            showFlash(
+                `✅ Загружено контактов: облако ${data.counts.cloud}, коробка ${data.counts.box}. Страница будет обновлена.`
+            );
+            setTimeout(() => window.location.reload(), 800);
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            syncBtn.disabled = false;
+            syncBtn.textContent = 'Загрузить контакты';
+        }
+    });
+
+    migrateBtn?.addEventListener('click', async () => {
+        // Проверяем, есть ли контакты для переноса
+        const rows = document.querySelectorAll('#contact-table tbody tr');
+        let hasUnmigrated = false;
+        rows.forEach(row => {
+            const status = row.querySelector('td:last-child .badge');
+            if (status && status.textContent.trim() === 'Ожидает') {
+                hasUnmigrated = true;
+            }
+        });
+
+        if (!hasUnmigrated) {
+            showFlash('ℹ️ Нет контактов для переноса (все уже перенесены).', false);
+            return;
+        }
+
+        if (!confirm('Перенести все контакты из облака в коробку?')) {
+            return;
+        }
+
+        migrateBtn.disabled = true;
+        migrateBtn.textContent = 'Перенос...';
+        try {
+            const data = await postJson('/migrate-contacts', {});
+            const result = data.result;
+            
+            let msg = `✅ Перенесено: ${result.created}`;
+            if (result.skipped > 0) msg += `, пропущено: ${result.skipped}`;
+            if (result.errors > 0) msg += `, ❌ ошибок: ${result.errors}`;
+            
+            showFlash(msg, result.errors > 0);
+            
+            if (result.errors > 0) {
+                console.error('Детали ошибок:');
+                result.details?.filter(d => d.includes('Ошибка')).forEach(d => console.error(d));
+            }
+            
+            if (result.created > 0 || result.errors === 0) {
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                migrateBtn.disabled = false;
+                migrateBtn.textContent = 'Перенести контакты';
+            }
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            migrateBtn.disabled = false;
+            migrateBtn.textContent = 'Перенести контакты';
+        }
+    });
+})();
+
+// ============================================
+// РАБОТА С ЛИДАМИ
+// ============================================
+
+(function() {
+    const page = document.querySelector('[data-page="leads"]');
+    if (!page) {
+        return;
+    }
+
+    const csrf = page.dataset.csrf;
+    const flash = document.getElementById('flash');
+    const syncStagesBtn = document.getElementById('sync-stages-btn');
+    const syncLeadsBtn = document.getElementById('sync-leads-btn');
+    const migrateBtn = document.getElementById('migrate-btn');
+
+    function showFlash(text, isError = false) {
+        if (!flash) return;
+        flash.hidden = false;
+        flash.textContent = text;
+        flash.classList.toggle('error', isError);
+    }
+
+    async function postJson(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-Token': csrf,
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Ошибка запроса');
+        }
+        return data;
+    }
+
+    // Синхронизация стадий
+    syncStagesBtn?.addEventListener('click', async () => {
+        syncStagesBtn.disabled = true;
+        syncStagesBtn.textContent = 'Загрузка...';
+        try {
+            const data = await postJson('/sync-stages', {});
+            showFlash(
+                `✅ Загружено стадий: облако ${data.counts.cloud}, коробка ${data.counts.box}. Сопоставление выполнено автоматически. Страница будет обновлена.`
+            );
+            setTimeout(() => window.location.reload(), 800);
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            syncStagesBtn.disabled = false;
+            syncStagesBtn.textContent = 'Загрузить стадии';
+        }
+    });
+
+    // Синхронизация лидов
+    syncLeadsBtn?.addEventListener('click', async () => {
+        syncLeadsBtn.disabled = true;
+        syncLeadsBtn.textContent = 'Загрузка...';
+        try {
+            const data = await postJson('/sync-leads', {});
+            showFlash(
+                `✅ Загружено лидов: облако ${data.counts.cloud}, коробка ${data.counts.box}. Страница будет обновлена.`
+            );
+            setTimeout(() => window.location.reload(), 800);
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            syncLeadsBtn.disabled = false;
+            syncLeadsBtn.textContent = 'Загрузить лиды';
+        }
+    });
+
+    // Перенос лидов
+    migrateBtn?.addEventListener('click', async () => {
+        // Проверяем, есть ли лиды для переноса
+        const rows = document.querySelectorAll('#lead-table tbody tr');
+        let hasUnmigrated = false;
+        let missingStages = false;
+        let missingCompanies = false;
+        let missingContacts = false;
+
+        rows.forEach(row => {
+            const status = row.querySelector('td:last-child .badge');
+            if (status && status.textContent.trim() === 'Ожидает') {
+                hasUnmigrated = true;
+                
+                // Проверяем предупреждения
+                const cells = row.querySelectorAll('td');
+                // Стадия (индекс 1)
+                const stageCell = cells[1];
+                if (stageCell && stageCell.textContent.includes('не сопоставлена')) {
+                    missingStages = true;
+                }
+                // Компания (индекс 2)
+                const companyCell = cells[2];
+                if (companyCell && companyCell.textContent.includes('не перенесена')) {
+                    missingCompanies = true;
+                }
+                // Контакт (индекс 3)
+                const contactCell = cells[3];
+                if (contactCell && contactCell.textContent.includes('не перенесён')) {
+                    missingContacts = true;
+                }
+            }
+        });
+
+        if (!hasUnmigrated) {
+            showFlash('ℹ️ Нет лидов для переноса (все уже перенесены).', false);
+            return;
+        }
+
+        // Предупреждения
+        let warnings = [];
+        if (missingStages) warnings.push('некоторые стадии не сопоставлены');
+        if (missingCompanies) warnings.push('некоторые компании не перенесены');
+        if (missingContacts) warnings.push('некоторые контакты не перенесены');
+
+        if (warnings.length > 0) {
+            if (!confirm(
+                `⚠️ Внимание! Есть проблемы:\n• ${warnings.join('\n• ')}\n\n` +
+                `Рекомендуется сначала перенести компании и контакты, а также сопоставить стадии.\n\n` +
+                `Продолжить перенос лидов?`
+            )) {
+                return;
+            }
+        } else {
+            if (!confirm('Перенести все лиды из облака в коробку?')) {
+                return;
+            }
+        }
+
+        migrateBtn.disabled = true;
+        migrateBtn.textContent = 'Перенос...';
+        try {
+            const data = await postJson('/migrate-leads', {});
+            const result = data.result;
+            
+            let msg = `✅ Перенесено лидов: ${result.created}`;
+            if (result.skipped > 0) msg += `, пропущено: ${result.skipped}`;
+            if (result.errors > 0) msg += `, ❌ ошибок: ${result.errors}`;
+            
+            showFlash(msg, result.errors > 0);
+            
+            if (result.errors > 0) {
+                console.error('Детали ошибок:');
+                result.details?.filter(d => d.includes('Ошибка')).forEach(d => console.error(d));
+            }
+            
+            if (result.created > 0 || result.errors === 0) {
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                migrateBtn.disabled = false;
+                migrateBtn.textContent = 'Перенести лиды';
+            }
+        } catch (error) {
+            showFlash('❌ ' + error.message, true);
+            migrateBtn.disabled = false;
+            migrateBtn.textContent = 'Перенести лиды';
+        }
+    });
+})();

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 final class UserService
 {
+
+
     public function __construct(private Database $db)
     {
     }
@@ -18,9 +20,18 @@ final class UserService
     }
 
     public function webhook(string $portal): string
-    {
-        return trim((string) $this->db->getSetting($portal . '_webhook', ''));
+{
+    // Сначала проверяем .env
+    $envKey = strtoupper($portal) . '_WEBHOOK';
+    $webhook = $_ENV[$envKey] ?? $_SERVER[$envKey] ?? null;
+
+    if ($webhook) {
+        return trim($webhook);
     }
+
+    // Fallback: читаем из БД
+    return trim((string) $this->db->getSetting($portal . '_webhook', ''));
+}
 
     public function demoMode(): bool
     {

@@ -1,6 +1,25 @@
 <?php
 
+
 declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+// Загружаем переменные окружения
+$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
+$dotenv->load();
+
+// Создаём папку для логов в проекте
+$logDir = dirname(__DIR__) . '/logs';
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0777, true);
+}
+
+// Перенаправляем логи в файл внутри проекта
+ini_set('error_log', $logDir . '/php_errors.log');
+ini_set('log_errors', 1);
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 session_start();
 
@@ -8,9 +27,15 @@ require dirname(__DIR__) . '/src/Database.php';
 require dirname(__DIR__) . '/src/BitrixClient.php';
 require dirname(__DIR__) . '/src/DemoUsers.php';
 require dirname(__DIR__) . '/src/UserService.php';
+require dirname(__DIR__) . '/src/CompanyService.php';
+require dirname(__DIR__) . '/src/ContactService.php';
+require dirname(__DIR__) . '/src/LeadService.php';
 
 $db = new Database(dirname(__DIR__) . '/data/app.sqlite');
 $users = new UserService($db);
+$companyService = new CompanyService($db, $users);
+$contactService = new ContactService($db, $users, $companyService);
+$leadService = new LeadService($db, $users, $companyService, $contactService);
 
 if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -43,6 +68,7 @@ function render(string $view, array $vars): void
 }
 
 try {
+    // ===== МАРШРУТЫ НАСТРОЕК =====
     if ($path === '/settings' && $method === 'POST') {
         require_csrf();
         $users->saveSettings(
@@ -54,6 +80,19 @@ try {
         exit;
     }
 
+    if ($path === '/settings') {
+        render('settings', [
+            'title' => 'Подключение порталов',
+            'csrf' => $_SESSION['csrf'],
+            'cloudWebhook' => $users->webhook('cloud'),
+            'boxWebhook' => $users->webhook('box'),
+            'demoMode' => $users->demoMode(),
+            'flash' => null,
+        ]);
+        exit;
+    }
+
+    // ===== МАРШРУТЫ ПОЛЬЗОВАТЕЛЕЙ =====
     if ($path === '/sync' && $method === 'POST') {
         require_csrf();
         $counts = $users->syncUsers();
@@ -85,18 +124,95 @@ try {
         json_response(['ok' => true, 'saved' => count(array_filter($pairs, static fn ($p) => $p['box_user_id']))]);
     }
 
-    if ($path === '/settings') {
-        render('settings', [
-            'title' => 'Подключение порталов',
+    // ===== МАРШРУТЫ КОМПАНИЙ =====
+    if ($path === '/sync-companies' && $method === 'POST') {
+        require_csrf();
+        $counts = $companyService->syncCompanies();
+        json_response(['ok' => true, 'counts' => $counts]);
+    }
+
+    if ($path === '/migrate-companies' && $method === 'POST') {
+        require_csrf();
+        $result = $companyService->migrateCompanies();
+        json_response(['ok' => true, 'result' => $result]);
+    }
+
+    if ($path === '/companies') {
+        render('companies', [
+            'title' => 'Перенос компаний',
             'csrf' => $_SESSION['csrf'],
-            'cloudWebhook' => $users->webhook('cloud'),
-            'boxWebhook' => $users->webhook('box'),
-            'demoMode' => $users->demoMode(),
-            'flash' => null,
+            'cloudCompanies' => $companyService->listCompanies('cloud'),
+            'boxCompanies' => $companyService->listCompanies('box'),
+            'mappings' => $companyService->getAllMappings(),
+            'userMappings' => $users->mappingsByCloudId(),
         ]);
         exit;
     }
 
+    // ===== МАРШРУТЫ КОНТАКТОВ =====
+    if ($path === '/sync-contacts' && $method === 'POST') {
+        require_csrf();
+        $counts = $contactService->syncContacts();
+        json_response(['ok' => true, 'counts' => $counts]);
+    }
+
+    if ($path === '/migrate-contacts' && $method === 'POST') {
+        require_csrf();
+        $result = $contactService->migrateContacts();
+        json_response(['ok' => true, 'result' => $result]);
+    }
+
+    if ($path === '/contacts') {
+        render('contacts', [
+            'title' => 'Миграция контактов',
+            'csrf' => $_SESSION['csrf'],
+            'cloudContacts' => $contactService->listContacts('cloud'),
+            'boxContacts' => $contactService->listContacts('box'),
+            'mappings' => $contactService->getAllMappings(),
+            'userMappings' => $users->mappingsByCloudId(),
+            'companyMappings' => $companyService->getAllMappings(),
+        ]);
+        exit;
+    }
+
+    // ===== МАРШРУТЫ СТАДИЙ =====
+    if ($path === '/sync-stages' && $method === 'POST') {
+        require_csrf();
+        $counts = $leadService->syncStages();
+        json_response(['ok' => true, 'counts' => $counts]);
+    }
+
+    // ===== МАРШРУТЫ ЛИДОВ =====
+    if ($path === '/sync-leads' && $method === 'POST') {
+        require_csrf();
+        $counts = $leadService->syncLeads();
+        json_response(['ok' => true, 'counts' => $counts]);
+    }
+
+    if ($path === '/migrate-leads' && $method === 'POST') {
+        require_csrf();
+        $result = $leadService->migrateLeads();
+        json_response(['ok' => true, 'result' => $result]);
+    }
+
+    if ($path === '/leads') {
+        render('leads', [
+            'title' => 'Миграция лидов',
+            'csrf' => $_SESSION['csrf'],
+            'cloudLeads' => $leadService->listLeads('cloud'),
+            'boxLeads' => $leadService->listLeads('box'),
+            'mappings' => $leadService->getAllMappings(),
+            'userMappings' => $users->mappingsByCloudId(),
+            'companyMappings' => $companyService->getAllMappings(),
+            'contactMappings' => $contactService->getAllMappings(),
+            'stageMappings' => $leadService->getStageMappings(),
+            'cloudStages' => $leadService->listStages('cloud'),
+            'boxStages' => $leadService->listStages('box'),
+        ]);
+        exit;
+    }
+
+    // ===== ГЛАВНАЯ СТРАНИЦА =====
     if ($path !== '/') {
         http_response_code(404);
         echo 'Not found';
@@ -116,6 +232,7 @@ try {
         'boxUsers' => $users->listUsers('box'),
         'mappings' => $users->mappingsByCloudId(),
     ]);
+
 } catch (Throwable $e) {
     if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') || $method === 'POST' && $path !== '/settings') {
         json_response(['ok' => false, 'error' => $e->getMessage()], 500);

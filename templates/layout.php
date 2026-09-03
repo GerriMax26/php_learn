@@ -17,10 +17,36 @@
                 </div>
             </div>
             <nav>
-                <a href="/" class="<?= ($view ?? '') === 'mapping' ? 'is-active' : '' ?>">Пользователи</a>
-                <a href="/settings" class="<?= ($view ?? '') === 'settings' ? 'is-active' : '' ?>">Подключение</a>
+                <a href="/settings" class="<?= ($view ?? '') === 'settings' ? 'is-active' : '' ?>">
+                    🔌 Подключение
+                </a>
+                <a href="/" class="<?= ($view ?? '') === 'mapping' ? 'is-active' : '' ?>">
+                    👤 Маппинг пользователей
+                </a>
+                <a href="/companies" class="<?= ($view ?? '') === 'companies' ? 'is-active' : '' ?>">
+                    🏢 Миграция компаний
+                </a>
+                <a href="/contacts" class="<?= ($view ?? '') === 'contacts' ? 'is-active' : '' ?>">
+                    📇 Миграция контактов
+                </a>
+                <a href="/leads" class="<?= ($view ?? '') === 'leads' ? 'is-active' : '' ?>">
+                    💼 Миграция лидов
+                </a>
+                <!-- Для будущих пунктов -->
+                <!--
+                <a href="/deals" class="<?= ($view ?? '') === 'deals' ? 'is-active' : '' ?>">
+                    📊 Миграция сделок
+                </a>
+                -->
             </nav>
-            <p class="sidebar-note">Шаг 1: сопоставление учёток через <code>user.get</code>.</p>
+            <p class="sidebar-note">
+                <strong>Порядок миграции:</strong><br>
+                1. 🔌 Настройте подключение<br>
+                2. 👤 Сопоставьте пользователей<br>
+                3. 🏢 Перенесите компании<br>
+                4. 📇 Перенесите контакты<br>
+                5. 💼 Перенесите лиды
+            </p>
         </aside>
         <main class="main">
             <?php require $viewFile; ?>

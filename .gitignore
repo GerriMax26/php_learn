@@ -4,3 +4,7 @@
 .idea/
 .vscode/
 *.log
+.env
+/data/app.sqlite
+/logs/
+/vendor/
